@@ -4,8 +4,7 @@ A Spring Cloud Function-based AWS Lambda that provides cursor-based pagination f
 
 ## Overview
 
-This serverless application exposes a Lambda function that returns paginated customer data using cursor-based pagination. 
-It demonstrates stateless pagination without requiring database persistence, this implementation is ideal for scalability and serverless architecture.
+This serverless application exposes a Lambda function that returns paginated customer data using cursor-based pagination. It demonstrates stateless pagination without requiring database persistence. This implementation is ideal for scalability and serverless architecture.
 
 ## Features
 
@@ -13,19 +12,10 @@ It demonstrates stateless pagination without requiring database persistence, thi
 - ✅ **Request Validation** - Query parameter validation with sensible defaults and limits
 - ✅ **REST Practices** - Proper HTTP status codes, headers, and error responses
 - ✅ **Security Headers** - Cache-Control and X-Content-Type-Options for enhanced security
-- ✅ **Service-Layer Sorting** - Customer data sorted by `customerId` ascending
-- ✅ **No Database Required** - In-memory data generation from properties for demonstration purposes
+- ✅ **Configuration-Based Data** - Customer data loaded from application.properties (no database required)
+- ✅ **CORS Support** - Cross-origin requests enabled for frontend integration
 
-## Architecture
-
-```
-API Gateway → Lambda (Spring Cloud Function) → CustomerDataFunction
-                                                      ↓
-                                              CustomerServiceCursorImpl
-                                                      ↓
-                                              Generate & Paginate Data
-```
-
+#
 ## Query Parameters
 
 ### `limit` (optional)
@@ -55,85 +45,10 @@ API Gateway → Lambda (Spring Cloud Function) → CustomerDataFunction
 
 ### Request (First Page)
 ```http
-GET /listCustomers?limit=5
+GET /api/customers?limit=5
 ```
-
-### Response (First Page)
-```json
-{
-  "data": [
-    {
-      "customerId": 1,
-      "fullName": "Bob 1",
-      "email": "Bob1@cbussuper.com.au",
-      "registrationDate": "22/10/2022"
-    },
-    {
-      "customerId": 2,
-      "fullName": "Bob 2",
-      "email": "Bob2@cbussuper.com.au",
-      "registrationDate": "04/12/1975"
-    },
-    ...
-    {
-      "customerId": 5,
-      "fullName": "Bob 5",
-      "email": "Bob5@cbussuper.com.au",
-      "registrationDate": "06/01/1989"
-    }
-  ],
-  "nextCursor": "eyJsYXN0SWQiOjV9",
-  "limit": 5
-}
-```
-
-### Request (Second Page)
-```http
-GET /listCustomers?limit=5&cursor=eyJsYXN0SWQiOjV9
-```
-
-### Response (Second Page)
-```json
-{
-  "data": [
-    {
-      "customerId": 6,
-      "fullName": "Bob 6",
-      "email": "Bob6@cbussuper.com.au",
-      "registrationDate": "22/08/1994"
-    },
-    ...
-    {
-      "customerId": 10,
-      "fullName": "Bob 10",
-      "email": "Bob10@cbussuper.com.au",
-      "registrationDate": "24/11/1989"
-    }
-  ],
-  "nextCursor": null,
-  "limit": 5
-}
-```
-
 **Note**: `nextCursor` is `null` when you've reached the last page.
 
-
-## Request Validation
-
-### Query Parameter Validation
-
-The function validates and sanitizes all query parameters:
-
-#### Limit Validation
-- **Missing `limit`**: Defaults to `5`
-- **Invalid integer**: Defaults to `5`
-- **Out of range** (`< 1` or `> 10`): Clamped to `1` or `10`
-- **Example**: `?limit=0` → automatically becomes `limit=1`
-
-#### Cursor Validation
-- **Missing `cursor`**: Treated as first page request
-- **Invalid Base64**: Returns `400 Bad Request`
-- **Malformed JSON**: Returns `400 Bad Request`
 
 ### Error Responses
 
@@ -152,40 +67,27 @@ The function validates and sanitizes all query parameters:
   "detail": "Unexpected error occurred"
 }
 ```
+## Configuration
 
-## Deployment
+### application.properties
 
-### AWS Lambda Configuration
+Customer data is configured in `src/main/resources/application.properties`:
 
-- **Handler**: `org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest`
-- **Runtime**: Java 17
-- **Memory**: 512 MB (recommended)
-- **Timeout**: 30 seconds
+```properties
+customers[0].customerId=1
+customers[0].fullName=Alice Johnson
+customers[0].email=alice.johnson@cbussuper.com.au
+customers[0].registrationDate=15/01/2023
 
-### Environment Variables
-
+customers[1].customerId=2
+customers[1].fullName=Bob Smith
+...
 ```
-spring.cloud.function.definition=listCustomers
-```
 
-**Example URLs**:
-```
-https://your-api-gateway-url/prod/customers?limit=5
-https://your-api-gateway-url/prod/customers?limit=5&cursor=eyJsYXN0SWQiOjV9
-```
+**To add more customers**, simply add additional entries with incremented indices.
 
 
 ## Data Model
-
-### Customer
-```java
-{
-  "customerId": int,        // Unique identifier (1-10)
-  "fullName": String,       // Customer full name
-  "email": String,          // Customer email
-  "registrationDate": String // Registration date (dd/MM/yyyy)
-}
-```
 
 ## Response Headers
 
@@ -194,6 +96,7 @@ https://your-api-gateway-url/prod/customers?limit=5&cursor=eyJsYXN0SWQiOjV9
 Content-Type: application/json
 Cache-Control: no-store
 X-Content-Type-Options: nosniff
+Access-Control-Allow-Origin: http://localhost:5173
 ```
 
 ### Error Responses (400, 500)
@@ -207,10 +110,10 @@ Content-Type: application/json
 - **MIME type sniffing prevention**: X-Content-Type-Options header
 - **Input validation**: All query parameters are validated and sanitized
 - **Error handling**: Generic error messages prevent information leakage
-
+- **CORS**: Configured for specific origins only
 
 ## Author
 
-#### This project is for demonstration purposes.
+**SanjayKrishnan Kannan**
 
-#### SanjayKrishnan Kannan
+This project is for demonstration purposes.
