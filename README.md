@@ -15,7 +15,7 @@ This serverless application exposes a Lambda function that returns paginated cus
 - ✅ **Configuration-Based Data** - Customer data loaded from application.properties (no database required)
 - ✅ **CORS Support** - Cross-origin requests enabled for frontend integration
 
-#
+
 ## Query Parameters
 
 ### `limit` (optional)
@@ -49,6 +49,54 @@ GET /api/customers?limit=5
 ```
 **Note**: `nextCursor` is `null` when you've reached the last page.
 
+### Pagination Flow
+
+**Step 1: First Request** (no cursor)
+```
+Request:  GET /api/customers?limit=5
+Process:  Fetch customers where customerId > 0
+Result:   Returns customers [1, 2, 3, 4, 5]
+Cursor:   eyJsYXN0SWQiOjV9 (lastId = 5)
+```
+
+**Step 2: Second Request** (with cursor)
+```
+Request:  GET /api/customers?limit=5&cursor=eyJsYXN0SWQiOjV9
+Decode:   cursor = {"lastId": 5}
+Process:  Fetch customers where customerId > 5
+Result:   Returns customers [6, 7, 8, 9, 10]
+Cursor:   null (no more data)
+```
+
+## Request Validation
+
+### Limit Validation
+
+The `RequestUtils.parseInt()` method handles all limit validation with clamping:
+
+| Input Value | Parsed Value | Reason |
+|-------------|--------------|--------|
+| `null` (not provided) | `5` | Default value applied |
+| `""` (empty string) | `5` | Default value applied |
+| `"0"` | `1` | Clamped to minimum (MIN=1) |
+| `"1"` | `1` | Valid, within range |
+| `"5"` | `5` | Valid, matches default |
+| `"10"` | `10` | Valid, at maximum |
+| `"20"` | `10` | Clamped to maximum (MAX=10) |
+| `"abc"` (non-numeric) | `5` | Invalid, default applied |
+| `"-5"` (negative) | `1` | Clamped to minimum |
+
+**All limit values are validated and sanitized** - no invalid values reach the service layer.
+
+### Cursor Validation
+
+| Cursor Value | Behavior | HTTP Status |
+|--------------|----------|-------------|
+| `null` (not provided) | Treated as first page | 200 OK |
+| Valid Base64 + Valid JSON | Decoded and processed | 200 OK |
+| Invalid Base64 | Error response | 400 Bad Request |
+| Valid Base64 but invalid JSON | Error response | 400 Bad Request |
+
 
 ### Error Responses
 
@@ -75,12 +123,12 @@ Customer data is configured in `src/main/resources/application.properties`:
 
 ```properties
 customers[0].customerId=1
-customers[0].fullName=Alice Johnson
-customers[0].email=alice.johnson@cbussuper.com.au
+customers[0].fullName=XXX
+customers[0].email=***.***@***.**
 customers[0].registrationDate=15/01/2023
 
 customers[1].customerId=2
-customers[1].fullName=Bob Smith
+customers[1].fullName=***
 ...
 ```
 
@@ -103,6 +151,29 @@ Access-Control-Allow-Origin: http://localhost:5173
 ```
 Content-Type: application/json
 ```
+
+### Environment Variables
+
+```properties
+spring.cloud.function.definition=listCustomers
+```
+
+## Data Model
+
+### Customer Object
+
+```java
+public class Customer {
+    private int customerId;        // Unique identifier (used for cursor pagination)
+    private String fullName;       // Customer full name
+    private String email;          // Customer email address
+    private String registrationDate; // Registration date (dd/MM/yyyy format)
+}
+```
+
+## Logging
+
+The application includes comprehensive logging for transaction tracking:
 
 ## Security Considerations
 
